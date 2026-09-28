@@ -19,8 +19,20 @@ int pairingInserts(FILE* fp, hashTable* ht) {
             return -1;
         }
 
-        int hashInsert = insert(ht, (void*)pair);
-        if (hashInsert == -1) { return -1; }
+        // Allocate the value since the hash table no longer does it
+        int* countVal = (int*)malloc(sizeof(int));
+        if (countVal == NULL) {
+            fprintf(stderr, "Malloc failure for countVal.\n");
+            free(pair);
+            return -1;
+        }
+        *countVal = 1; // Initial count
+
+        int hashInsert = insert(ht, (void*)pair, (void*)countVal);
+        if (hashInsert == -1) { 
+            free(pair);
+            free(countVal);
+            return -1; }
         
         // Pair isn't freed since hashtable key owns it now.
         free(word1);

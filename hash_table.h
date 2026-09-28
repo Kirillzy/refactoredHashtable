@@ -10,13 +10,20 @@ typedef struct Node {
     void* key;
     void* val;
     struct Node* next;
-}Node;
+} Node;
 
 typedef struct hashTable {
     int buckets;
     int elements;
     Node** table;
-}hashTable;
+
+    // Generic Callbacks
+    unsigned long long (*hashFunc)(void* key);
+    int (*cmpFunc)(void* keyA, void* keyB);
+    void (*freeKey)(void* key);
+    void (*freeVal)(void* val);
+    void (*updateVal)(void* val);
+} hashTable;
 
 /*
 This functions job is to return a ready made hashTable to use.
@@ -25,7 +32,13 @@ initializing the buckets to 16, elements to 0, and callocing the table
 to the size of the buckets (16) where all of them are set to NULL (0) to start, 
 and made to store Nodes in its arrays.
 */
-hashTable* hashTableInitial(void);
+hashTable* hashTableInitial(
+    unsigned long long (*hashFunc)(void*),
+    int (*cmpFunc)(void*, void*),
+    void (*freeKey)(void*),
+    void(*freeVal)(void*),
+    void (*updateVal)(void*)
+);
 
 
 /*
@@ -38,7 +51,7 @@ the val, or if it actually needs a new node to add into the hashtable.
 
 A return of 0 is good, -1 is bad and will result an error.
 */
-int insert(hashTable* ht, void* key);
+int insert(hashTable* ht, void* key, void* val);
 
 
 /*

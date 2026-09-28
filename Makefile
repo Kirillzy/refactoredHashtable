@@ -23,7 +23,7 @@ wordPair.o: wordPair.c wordPair.h hash_table.h
 	cc wordPair.c -c
 
 run: pairsofwords
-	./pairsofwords
+	./pairsofwords -10 dracula.txt
 
 .PHONY: clean
 clean:

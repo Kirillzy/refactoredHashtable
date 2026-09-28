@@ -3,6 +3,27 @@
 #include "wordPair.h"
 // stdio.h, stdlib.h, string.h are in the header files already
 
+
+// Defining how to hash specific key
+unsigned long long myStringHash(void* key) {
+    return crc64((char*)key); 
+}
+
+// Defining how to compare specific keys
+int myStringCmp(void* keyA, void* keyB) {
+    return strcmp((char*)keyA, (char*)keyB);
+}
+
+// Defining how to free payloads
+void myStandardFree(void* ptr) {
+    free(ptr);
+}
+
+void myUpdateVal(void* val) {
+	*(int*)val += 1;
+}
+
+
 /* 
    Pass in the argv[1] which is only where count flag may appear.
    It is also known that count starts with '-' and the rest are numbers. (And we only accept positive numbers)
@@ -92,7 +113,7 @@ int main(int argc, char **argv) {
 	int fileIndex = 1;
 	if (count != -1) { fileIndex = 2; } 
  
-	hashTable* ht = hashTableInitial();
+	hashTable* ht = hashTableInitial(myStringHash, myStringCmp, myStandardFree, myStandardFree, myUpdateVal);
 	if (ht == NULL) { return -1; } 
 	
 	// Goes through each file and inserting pairs of words into the hashtable

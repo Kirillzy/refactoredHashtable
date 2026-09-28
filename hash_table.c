@@ -3,7 +3,13 @@
 
 
 
-hashTable* hashTableInitial(void) {
+hashTable* hashTableInitial(
+    unsigned long long (*hashFunc)(void*),
+    int (*cmpFunc)(void*, void*),
+    void (*freeKey)(void*),
+    void(*freeVal)(void*),
+    void (*updateVal)(void*)
+) {
     hashTable* ht = (hashTable*)malloc(sizeof(hashTable));
     if (ht == NULL) {
         fprintf(stderr, "Malloc Failure for ht...\n");
@@ -12,6 +18,14 @@ hashTable* hashTableInitial(void) {
 
     ht->buckets = 16;
     ht->elements = 0;
+
+    // Assigning the callbacks to handle them generically.
+    ht->hashFunc = hashFunc;
+    ht->cmpFunc = cmpFunc;
+    ht->freeKey = freeKey;
+    ht->freeVal = freeVal;
+    ht->updateVal = updateVal;
+
     ht->table = calloc(ht->buckets, sizeof(Node*));
     if (ht->table == NULL) {
         fprintf(stderr, "Malloc Failure for table...\n");
@@ -39,12 +53,14 @@ Node* createNode(void) {
    the tables buckets amount, hashes it, and places it into the table by
    using (hash & (buckets -1)) as its index to place into the table.
 */
-void growInsert(Node** table, Node* node, int buckets) {
+void growInsert(hashTable* ht, Node** table, Node* node, int buckets) {
     
     node->next = NULL; // Needed, otherwise it'll hold the prev tables collisions.
 
     
-    unsigned long long hash = crc64((char*)node->key); 
+    // OLD: unsigned long long hash = crc64((char*)node->key); 
+    unsigned long long hash = ht->hashFunc(node->key);
+
     int index = hash & (buckets - 1);
 
     Node* head = table[index];
@@ -92,7 +108,7 @@ int growTable(hashTable* ht) {
 
         while(cursor != NULL) {
             Node* nextNode = cursor->next;
-            growInsert(growTable, cursor, growBuckets);
+            growInsert(ht, growTable, cursor, growBuckets);
             cursor = nextNode;
         }
     }
@@ -113,7 +129,8 @@ Node* contains(hashTable *ht, void* key, int index) {
     Node* head = ht->table[index];
 
     while (head != NULL) {
-        if (strcmp((char*)head->key, (char*)key) == 0) { return head; }
+        // OLD: if (strcmp((char*)head->key, (char*)key) == 0) { return head; }
+        if (ht->cmpFunc(head->key, key) == 0) { return head; }
         head = head->next;
     }
     return NULL;
@@ -125,19 +142,22 @@ Node* contains(hashTable *ht, void* key, int index) {
 // Return 2 if doesn't exist, otherwise 0 for success.
 int increment(hashTable* ht, void* key) {
 
-    unsigned long long hash = crc64((char*)key);
+    // OLD: unsigned long long hash = crc64((char*)key);
+    unsigned long long hash = ht->hashFunc(key);
+
     int index = hash & (ht->buckets - 1);
     Node* foundNode = contains(ht, key, index);
     if (foundNode == NULL) { return 2; } // Doesnt exist
 
-    *(int*)foundNode->val += 1;
+    // OLD: *(int*)foundNode->val += 1;
+    ht->updateVal(foundNode->val);
     return 0; 
 }
 
 
 
 
-int insert(hashTable* ht, void* key) {
+int insert(hashTable* ht, void* key, void* val) {
 
     // Checking for if we need to grow the tree now.
     double loadFactor = (double)(ht->elements) / (ht->buckets);
@@ -150,7 +170,8 @@ int insert(hashTable* ht, void* key) {
     int exists = increment(ht, key);
     // If 0, increment successful.
     if (exists == 0) { 
-        free(key);
+        ht->freeKey(key);
+        ht->freeVal(val);
         return 0; 
     }
 
@@ -158,17 +179,11 @@ int insert(hashTable* ht, void* key) {
     Node* newNode = createNode();
     if (newNode == NULL) { return -1; }
 
-    int* newNodeVal = malloc(sizeof(int));
-    if (newNodeVal == NULL) {
-        fprintf(stderr, "Malloc Failure for newNodeVal.\n");
-        return -1;
-    }
+    newNode->key = key;
+    newNode->val = val;
 
-    *newNodeVal = 1;
-    newNode->key = (char*)key;
-    newNode->val = newNodeVal;
-
-    unsigned long long hash = crc64((char*)key);
+    // OLD: unsigned long long hash = crc64((char*)key);
+    unsigned long long hash = ht->hashFunc(key);
     int index = hash & (ht->buckets - 1);
 
     Node* head = ht->table[index];
@@ -205,11 +220,13 @@ void flatten(hashTable *ht, Node* arr) {
 
 // Helper function for "emptyTable(hashTable* ht)"
 // Just does the usual freeing off to the side.
-void freeNode(Node* node) {
-    free(node->key); 
-    free(node->val);
-    node->key = NULL;
-    node->val = NULL;
+void freeNode(hashTable* ht, Node* node) {
+    if (ht->freeKey != NULL && node->key != NULL) {
+        ht->freeKey(node->key);
+    }
+    if (ht->freeVal != NULL && node->val != NULL) {
+        ht->freeVal(node->val);
+    }
     node->next = NULL;
     free(node);
     node = NULL;
@@ -221,7 +238,7 @@ void emptyTable(hashTable* ht) {
         while(cursor != NULL) {
             Node* toFree = cursor;
             cursor = cursor->next;
-            freeNode(toFree);
+            freeNode(ht, toFree);
         }
     }
     free(ht->table);
