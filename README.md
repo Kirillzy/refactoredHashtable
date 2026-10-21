@@ -1,24 +1,70 @@
-This readme is designed to hopefully help navigate with how I left comments and the reason for my design choices.
+# Generic C Hash Table with POSIX I/O and Binary Serialization
 
-## My way of commenting.
+A high-performance, fully generic hash table library written in C. Originally built to parse and count word pair frequencies across text files, this project was architected into a robust systems-level library featuring `void*` genericity, raw POSIX system calls for file I/O, and custom binary serialization for state persistence.
 
-I only put my functions in the `.h` files that are used by other `.c` files that are not by the same name. For those functions, their comment block codes for how they work will be in the `.h` files.
+## Key Engineering Features
 
-For all other functions, I have mostly classified them as helper functions and their comments will mention who they are a helper towards and will also have a comment block on what they do, but its inside those `.c` files specifically.
+### 1. True Generics via Function Pointers
 
+The core hash table (`hash_table.c`) is completely decoupled from specific data types. It utilizes `void*` payloads and requires user-provided function pointers (callbacks) upon initialization to handle:
 
-## What design choice did I do and why?
+* Dynamic hashing algorithms
+* Key comparison logic
+* Memory allocation and deallocation (Garbage Collection)
+* Value updating
 
-I chose an initial capacity of 16 buckets to optimize both speed and memory efficiency. This decision was driven by three technical factors:
+### 2. Low-Level POSIX System I/O
 
-- Performance over Modulo: Instead of using the modulo operator (`hash % buckets`) to find an index, I used the bitwise AND approach (`hash & (buckets - 1)`). Bitwise operations are significantly faster at the CPU level, speeding up every single insert and resize operation. (Which I learned about while researching approaches to do a hashtable)
+Transitioned away from C Standard Library buffered streams (`FILE*`, `fopen`, `fgetc`) in favor of direct POSIX system calls (`open`, `read`, `write`, `close`).
 
-- The Power of 2 Requirement: For the bitwise AND technique to distribute keys evenly without heavy bias or clustering, the table size _must_ be a power of 2.
+* **Custom Memory Buffering:** Implemented a static 4096-byte memory buffer to drastically minimize kernel system call overhead during large file reads, processing files nearly instantaneously.
 
-- Balancing Initial Load: I selected 16 ($2^4$) rather than a smaller power of 2 (like 2, 4, or 8) to prevent immediate resizing. With a load factor threshold of 0.75, starting too small would force the table to grow almost instantly, wasting time for little gain. 16 provided me a strong middle ground that handles small files cleanly while still demonstrating the table's growth capabilities on larger texts. (Also why I grow by `4x` to keep it powers of 2).
-#### Trade-offs I Considered
+### 3. Graph Serialization and State Persistence
 
-- Hash Function Dependency: The bitwise AND approach (`hash & (buckets - 1)`) only evaluates the lowest bits of the hash. If paired with a weak hash function, this causes severe clustering compared to using modulo with a prime number (which was my second pick if I couldn't get this working). I mitigated this slightly by using `crc64`, but if I were to in the future get a better hash function or even make one on my own, it would still drastically help than using modulo.
+Engineered a custom binary protocol to save the complex, pointer-based linked-list graph to disk and accurately reconstruct it dynamically in memory during subsequent executions.
 
-- Memory Overhead: Another issue is when I had to regrow the tree each time, the (`4x`) multiplier to definitely takes a hit to how much memory I am taking up. Worst case is that it barely uses that new memory. Best case is that it uses most of it and stops running.
+* The `saveTable` and `loadTable` functions flatten the `O(1)` bucket chains into a binary file (`database.bin`), allowing users to parse gigabytes of data once, save the state, and load it instantly later.
 
+### 4. High-Performance Architecture
+
+* **Hashing:** Utilizes CRC64 hashing algorithms.
+* **Bitwise Masking:** Replaced standard modulo arithmetic with bitwise AND masking (`hash & (buckets - 1)`) for `O(1)` index calculation.
+* **Dynamic Resizing:** Strict power-of-2 bucket resizing triggers at a 0.75 load factor.
+* **Memory Safety:** Strict memory handoff protocols ensure zero memory leaks across thousands of dynamic heap allocations (Verified watertight via `Valgrind`).
+
+## Compilation and Usage
+
+Compile the project using the included Makefile:
+
+```bash
+make
+```
+
+### Modes of Operation
+
+**1. Standard Parsing Mode**
+Parse text files, count word pair frequencies, print the top `N` results, and save the state to disk.
+
+```bash
+# Example: Print top 10 word pairs from dracula.txt and frankenstein.txt
+./pairsofwords -10 dracula.txt frankenstein.txt
+```
+
+**2. Binary Load Mode (`-load`)**
+Bypass text parsing by loading the pre-computed binary database directly into memory. You can also append new text files to the loaded database.
+
+```bash
+# Example: Load previous state and instantly print top 20 pairs
+./pairsofwords -20 -load
+
+# Example: Load previous state, append a new book, and save the updated state
+./pairsofwords -10 -load newbook.txt
+```
+
+## Memory Verification
+
+This project maintains strict memory hygiene. You can verify the absence of memory leaks using Valgrind:
+
+```bash
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./pairsofwords -10 -load
+```
