@@ -6,6 +6,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <fcntl.h> // Needed for open
+#include <unistd.h> // Needed for close
+#include <errno.h>
+
 typedef struct Node {
     void* key;
     void* val;

@@ -1,14 +1,14 @@
 #include "wordPair.h"
 
-int pairingInserts(FILE* fp, hashTable* ht) {
+int pairingInserts(int fd, hashTable* ht) {
     
-    char* word1 = getNextWord(fp); // Gives us a malloced word.
+    char* word1 = getNextWord(fd); // Gives us a malloced word.
 
     if (word1 == NULL) { return 0; } // NULL due to getWord.h specifying it. 
 
     char* word2 = NULL;
 
-    while( (word2 = getNextWord(fp)), word2 != NULL) {
+    while( (word2 = getNextWord(fd)), word2 != NULL) {
 
         int wordPairLength = strlen(word1) + strlen(word2);
         // +2 is to have " " and the null terminator included.

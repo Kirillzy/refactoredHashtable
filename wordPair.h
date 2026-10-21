@@ -20,7 +20,7 @@ this means that every word gets used twice except for the start/end words.
 
 0 is returned for good, -1 is returned if something went bad.
 */
-int pairingInserts(FILE* fp, hashTable* ht); 
+int pairingInserts(int fd, hashTable* ht); 
 
 
 #endif

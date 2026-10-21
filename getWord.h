@@ -13,6 +13,6 @@
 /* with an alphabetic character.  All alphabetic characters  */
 /* translated to lower case and punctuation is removed.      */
 
-char* getNextWord(FILE* fd);
+char* getNextWord(int fd);
 
 #endif

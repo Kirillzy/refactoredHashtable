@@ -118,24 +118,23 @@ int main(int argc, char **argv) {
 	
 	// Goes through each file and inserting pairs of words into the hashtable
 	while (fileIndex < argc) {
-		FILE* fp = fopen(argv[fileIndex], "r");
-		if (fp == NULL) {
-			fprintf(stderr, "File returned NULL\n");
+		int fd = open(argv[fileIndex], "O_RDONLY");
+		if (fd < 0) {
+			fprintf(stderr, "fd -1 return\n");
 			fileIndex += 1;
 			continue;
 		}
 		
 		// pairs the words up and inserts them, 0 for good, -1 for bad
-		int pairing = pairingInserts(fp, ht); 
+		int pairing = pairingInserts(fd, ht); 
 		if (pairing == -1) { 
 			emptyTable(ht);
-			fclose(fp);
+			close(fd);
 			return -1;
 		}
 		
 		fileIndex += 1;
-		fclose(fp);
-		fp = NULL;
+		close(fd);
 	}
 	if (ht->elements == 0) {
 		emptyTable(ht);
