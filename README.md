@@ -30,7 +30,7 @@ Engineered a custom binary protocol to save the complex, pointer-based linked-li
 * **Hashing:** Utilizes CRC64 hashing algorithms.
 * **Bitwise Masking:** Replaced standard modulo arithmetic with bitwise AND masking (`hash & (buckets - 1)`) for `O(1)` index calculation.
 * **Dynamic Resizing:** Strict power-of-2 bucket resizing triggers at a 0.75 load factor.
-* **Memory Safety:** Strict memory handoff protocols ensure zero memory leaks across thousands of dynamic heap allocations (Verified watertight via `Valgrind`).
+* **Memory Safety:** Strict memory handoff protocols ensure zero memory leaks across thousands of dynamic heap allocations (Verified via `Valgrind`).
 
 ## Compilation and Usage
 
@@ -63,7 +63,7 @@ Bypass text parsing by loading the pre-computed binary database directly into me
 
 ## Memory Verification
 
-This project maintains strict memory hygiene. You can verify the absence of memory leaks using Valgrind:
+This project maintains strict memory management. You can verify the memory leaks using Valgrind:
 
 ```bash
 valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./pairsofwords -10 -load
