@@ -1,8 +1,5 @@
 #include "hash_table.h"
 
-
-
-
 hashTable* hashTableInitial(
     unsigned long long (*hashFunc)(void*),
     int (*cmpFunc)(void*, void*),
@@ -44,6 +41,103 @@ Node* createNode(void) {
     newNode->key = NULL;
     newNode->val = NULL;
     return newNode;
+}
+
+// saves the total buckets, and tot elements, and then maps out exact length of every linked list chain to rebuilt later.
+int saveTable(hashTable* ht, const char* filename, void (*writeNode)(int fd, void* key, void* val)) {
+
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) { return -1; }
+
+    // core metadata
+    write(fd, &ht->buckets, sizeof(int));
+    write(fd, &ht->elements, sizeof(int));
+
+    // saves layout in a for loop
+    for (int i = 0; i < ht->buckets; i++) {
+        int chainLen = 0;
+        Node* cursor = ht->table[i];
+
+        // Counts nodes in this bucket
+        while (cursor != NULL) {
+            chainLen++;
+            cursor = cursor->next;
+        }
+
+        // Writes the chain length so loader knows how many to expect.
+        write(fd, &chainLen, sizeof(int));
+
+        // Iteratate again but actually writing the actual generic data
+        cursor = ht->table[i];
+        while (cursor != NULL) {
+            writeNode(fd, cursor->key, cursor->val);
+            cursor = cursor->next;
+        }
+    }
+    close(fd);
+    return 0;
+}
+
+hashTable* loadTable(const char* filename,
+    unsigned long long (*hashFunc)(void*),
+    int (*cmpFunc)(void*, void*),
+    void (*freeKey)(void*),
+    void (*freeVal)(void*),
+    void (*updateVal)(void*),
+    void (*readNode)(int fd, void** key, void** val)) {
+
+        int fd = open(filename, O_RDONLY);
+        if (fd < 0) { return NULL; }
+
+        int loadedBuckets;
+        int loadedElements;
+        read(fd, &loadedBuckets, sizeof(int));
+        read(fd, &loadedElements, sizeof(int));
+
+        // Initialize using generic initializers
+        hashTable* ht = hashTableInitial(hashFunc, cmpFunc, freeKey, freeVal, updateVal);
+        if (ht == NULL) {
+            close(fd);
+            return NULL;
+        }
+
+        // Override default (16 buckets) with the saved state
+        free(ht->table);
+        ht->buckets = loadedBuckets;
+        ht->elements = loadedElements;
+        ht->table = calloc(ht->buckets, sizeof(Node*));
+
+        for (int i = 0; i < ht->buckets; i++) {
+            int chainLen;
+            read(fd, &chainLen, sizeof(int));
+
+            Node* tail = NULL; // Keep track of end of list to append 
+
+            for (int j = 0; j < chainLen; j++) {
+                void* key = NULL;
+                void* val = NULL;
+
+                // What user provided to read the generic data
+                readNode(fd, &key, &val);
+
+                // Rebuild node
+                Node* newNode = createNode();
+                newNode->key = key;
+                newNode->val = val;
+
+                // Link into chain
+                if (ht->table[i] == NULL) {
+                    ht->table[i] = newNode;
+                }
+                else {
+                    tail->next = newNode;
+                }
+                tail = newNode;
+                
+            }
+        }
+        close(fd);
+        return ht;
 }
 
 

@@ -24,6 +24,39 @@ void myUpdateVal(void* val) {
 }
 
 
+// How to write the specific data to disk helper
+void myWriteNode(int fd, void* key, void* val) {
+    char* strKey = (char*)key;
+    int strLen = strlen(strKey);
+
+    // String length, then the string
+    write(fd, &strLen, sizeof(int));
+    write(fd, strKey, strLen);
+
+    // Integer count
+    write(fd, val, sizeof(int));
+}
+
+// How to read the specific data from disk
+void myReadNode(int fd, void** key, void** val) {
+    int strLen;
+    read(fd, &strLen, sizeof(int));
+
+    // Allocates exact mem for string (+1 for null term)
+    char* strKey = (char*)malloc(strLen + 1);
+    read(fd, strKey, strLen);
+    strKey[strLen] = '\0';
+
+    // Allocates mem for int count
+    int* countVal = (int*)malloc(sizeof(int));
+    read(fd, countVal, sizeof(int));
+
+    // Assigns back to generic double pointers
+    *key = strKey;
+    *val = countVal;
+}
+
+
 /* 
    Pass in the argv[1] which is only where count flag may appear.
    It is also known that count starts with '-' and the rest are numbers. (And we only accept positive numbers)
@@ -98,48 +131,87 @@ int main(int argc, char **argv) {
 	}
 	
 	int count = -1;  // -1 signifies count hasnt been provided.
-	if (argc >= 2) {  
-		count = getCount(argv[1]);
-		
-		if (count == -2) { return -1; }
 
-		else if (count != -1 && argc == 2) {
-			fprintf(stderr, "No files, only count given.\n");
-			return -1;
-		}
-	}
-
+	int loadFromDisk = 0;
 	// Setting up the file index
 	int fileIndex = 1;
-	if (count != -1) { fileIndex = 2; } 
+
+	// Parse for flag before other argv's
+	while (fileIndex < argc && argv[fileIndex][0] == '-') {
+		if (strcmp(argv[fileIndex], "-load") == 0) {
+			loadFromDisk = 1;
+		}
+		else {
+			count = getCount(argv[fileIndex]);
+		}
+		fileIndex++;
+	}
+
+
+
  
-	hashTable* ht = hashTableInitial(myStringHash, myStringCmp, myStandardFree, myStandardFree, myUpdateVal);
-	if (ht == NULL) { return -1; } 
+	hashTable* ht = NULL;
 	
-	// Goes through each file and inserting pairs of words into the hashtable
+	// Either load from disk or parse text files
+    if (loadFromDisk) {
+        printf("Loading hash table from database.test...\n");
+        ht = loadTable("database.test", myStringHash, myStringCmp, myStandardFree, myStandardFree, myUpdateVal, myReadNode);
+        if (ht == NULL) {
+            fprintf(stderr, "Failed to load database.test\n");
+            return 1;
+        }
+    } 
+	else {
+        // Normal initialization
+        ht = hashTableInitial(myStringHash, myStringCmp, myStandardFree, myStandardFree, myUpdateVal);
+        if (ht == NULL) { return 1; } 
+	}
+
+	int addedNewData = 0;
+
+	// if (fileIndex >= argc) {
+	// 	fprintf(stderr, "No files given to parse.\n");
+	// 	emptyTable(ht);
+	// 	return 1;
+	// }
+
+	// POSIX file reading loop
 	while (fileIndex < argc) {
 		int fd = open(argv[fileIndex], O_RDONLY);
 		if (fd < 0) {
-			fprintf(stderr, "fd -1 return\n");
-			fileIndex += 1;
+			fprintf(stderr, "Failed to open %s\n", argv[fileIndex]);
+			fileIndex++;
 			continue;
 		}
-		
-		// pairs the words up and inserts them, 0 for good, -1 for bad
-		int pairing = pairingInserts(fd, ht); 
-		if (pairing == -1) { 
+
+		printf("Parsing new file: %s\n", argv[fileIndex]);
+		if (pairingInserts(fd, ht) == -1) { 
 			emptyTable(ht);
 			close(fd);
-			return -1;
+			return 1;
 		}
-		
-		fileIndex += 1;
+		addedNewData = 1;
 		close(fd);
+		fileIndex++;
 	}
+	// Save the table to disk
+	if (addedNewData | (!loadFromDisk && ht->elements > 0)){
+		printf("Total Unique Elements in Table: %d\n", ht->elements);
+		printf("Saving hash table to disk...\n");
+		if (saveTable(ht, "database.test", myWriteNode) == 0) {
+			printf("Save success.\n");
+		}
+		else {
+			fprintf(stderr, "Failed to save hash table.\n");
+		}
+	}
+
 	if (ht->elements == 0) {
 		emptyTable(ht);
 		return 0;
 	}
+	
+
     Node arr[ht->elements];
 	// Will put all the nodes linearly with no collisions for qsort()
 	flatten(ht, arr);

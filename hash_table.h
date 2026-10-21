@@ -72,5 +72,25 @@ and node itself; ending off with the actual hashtable. This is to help exit out 
 void emptyTable(hashTable* ht);
 
 
+/*
+Saves the hash table to a binary file.
+Requires a user to provide callback to write the generic key/val payloads.
+*/
+int saveTable(hashTable* ht, const char* filename, void (*writeNode)(int fd, void* key, void* val));
+
+/* 
+Loads a hash table from a binary file.
+Requires the standard initialization callbacks, plus a user to provide callbacks to read the payloads.
+*/
+hashTable* loadTable(const char* filename,
+    unsigned long long (*hashFunc)(void*),
+    int (*cmpFunc)(void*, void*),
+    void (*freeKey)(void*),
+    void (*freeVal)(void*),
+    void (*updateVal)(void*),
+    void (*readNode)(int fd, void** key, void** val)
+);
+
+
 #endif
 
