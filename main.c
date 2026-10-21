@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
 	
 	// Goes through each file and inserting pairs of words into the hashtable
 	while (fileIndex < argc) {
-		int fd = open(argv[fileIndex], "O_RDONLY");
+		int fd = open(argv[fileIndex], O_RDONLY);
 		if (fd < 0) {
 			fprintf(stderr, "fd -1 return\n");
 			fileIndex += 1;
